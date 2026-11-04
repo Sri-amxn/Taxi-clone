@@ -77,6 +77,12 @@ class Share(db.Model):
 class Ledger(db.Model):
  __tablename__='REVENUE_LEDGER'
  id=db.Column(db.Integer,primary_key=True); ride_id=db.Column(db.Integer,db.ForeignKey('RIDES.id'),unique=True); driver_id=db.Column(db.Integer,db.ForeignKey('DRIVERS.id')); fare=db.Column(db.Float); driver_pct=db.Column(db.Float); company_pct=db.Column(db.Float); driver_amount=db.Column(db.Float); company_amount=db.Column(db.Float)
+class DemoPayment(db.Model):
+ __tablename__='DEMO_PAYMENTS'
+ ride_id=db.Column(db.Integer,db.ForeignKey('RIDES.id'),primary_key=True)
+ amount=db.Column(db.Float,nullable=False)
+ paid_at=db.Column(db.Float,default=now,nullable=False)
+ reference=db.Column(db.String(40),unique=True,nullable=False)
 class Audit(db.Model):
  __tablename__='ADMIN_AUDIT_LOG'
  id=db.Column(db.Integer,primary_key=True); admin_id=db.Column(db.Integer); action=db.Column(db.String(50)); before=db.Column(db.JSON); after=db.Column(db.JSON); reason=db.Column(db.String(250)); created=db.Column(db.Float,default=now)
@@ -224,7 +230,8 @@ def ride_json(r):
  loc=db.session.get(Location,r.driver_id) if r.driver_id and r.status=='ASSIGNED' else None
  v=db.session.get(RideVerification,r.id)
  ledger=Ledger.query.filter_by(ride_id=r.id).first()
- return dict(id=r.id,status=r.status,driver_id=r.driver_id,driver_name=display_name(r.driver_id) if r.driver_id else None,rider_name=display_name(r.rider_id),start_code=ride_code(v) if v and not v.verified and v.expires>now() and v.attempts<5 and g.user.id==r.rider_id else None,code_expires=v.expires if v else None,settlement=dict(driver_pct=ledger.driver_pct,company_pct=ledger.company_pct,driver_amount=ledger.driver_amount,company_amount=ledger.company_amount) if ledger else None,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
+ payment=db.session.get(DemoPayment,r.id)
+ return dict(id=r.id,status=r.status,payment=dict(status='simulated_paid',amount=payment.amount,reference=payment.reference,paid_at=payment.paid_at) if payment else dict(status='pending'),driver_id=r.driver_id,driver_name=display_name(r.driver_id) if r.driver_id else None,rider_name=display_name(r.rider_id),start_code=ride_code(v) if v and not v.verified and v.expires>now() and v.attempts<5 and g.user.id==r.rider_id else None,code_expires=v.expires if v else None,settlement=dict(driver_pct=ledger.driver_pct,company_pct=ledger.company_pct,driver_amount=ledger.driver_amount,company_amount=ledger.company_amount) if ledger else None,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
 lock=threading.RLock()
 class RideService:
  @staticmethod
@@ -277,7 +284,7 @@ class RideService:
     d=Repository.get(Driver,g.user.id)
     if d.status!='ongoing_ride': raise ValueError('Trip must be ongoing')
     share=Share.query.order_by(Share.id.desc()).first(); fare=Repository.get(Quote,r.quote_id).data['total']; amount=money(Decimal(str(fare))*Decimal(str(share.driver_pct))/100)
-    Repository.add(Ledger(ride_id=id,driver_id=d.id,fare=fare,driver_pct=share.driver_pct,company_pct=share.company_pct,driver_amount=amount,company_amount=money(fare-amount))); r.status='COMPLETED'; d.status='ride_completed'
+    Repository.add(Ledger(ride_id=id,driver_id=d.id,fare=fare,driver_pct=share.driver_pct,company_pct=share.company_pct,driver_amount=amount,company_amount=money(fare-amount))); r.status='COMPLETED'; d.status='available'; d.updated=now()
    else: raise ValueError('Unknown action')
    if r.status!='SEARCHING':
     for invitation in Invitation.query.filter_by(ride_id=id,status='pending'):
@@ -310,6 +317,21 @@ def live_route(id):
 @limiter.limit('15 per minute')
 @auth()
 def ride_action(id,action): return jsonify(RideService.action(id,action))
+@app.post('/api/rides/<int:id>/simulate-payment')
+@auth('rider')
+@limiter.limit('10 per minute')
+def simulate_payment(id):
+ with lock:
+  r=Repository.get(Ride,id)
+  if r.rider_id!=g.user.id: return jsonify(error='Access denied'),403
+  if r.status!='COMPLETED': raise ValueError('Finish the ride before simulating payment')
+  payment=db.session.get(DemoPayment,id)
+  if not payment:
+   fare=Repository.get(Quote,r.quote_id).data['total']
+   Repository.add(DemoPayment(ride_id=id,amount=fare,reference='DEMO-'+secrets.token_hex(10)))
+   db.session.commit()
+  socket.emit('ride.updated',{'ride_id':id},to=str(r.driver_id))
+  return jsonify(ride_json(r))
 @app.get('/api/dashboard')
 @auth()
 def dashboard():
@@ -389,6 +411,10 @@ def upgrade_profiles_otp():
  Profile.__table__.create(db.engine,checkfirst=True)
  RideVerification.__table__.create(db.engine,checkfirst=True)
  print('Profile and ride-verification tables ready. Existing users can set names in Profile.')
+@app.cli.command('upgrade-payments')
+def upgrade_payments():
+ DemoPayment.__table__.create(db.engine,checkfirst=True)
+ print('Demo payment table ready; no real payments are processed.')
 @app.cli.command('create-admin')
 def create_admin():
  import getpass
