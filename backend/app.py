@@ -196,7 +196,9 @@ class DriverService:
  @staticmethod
  def status(s):
   d=Repository.get(Driver,g.user.id)
-  if s not in TRANSITIONS.get(d.status,[]): raise ValueError('Invalid status transition')
+  if s in ('offline','available') and Ride.query.filter_by(driver_id=d.id,status='ASSIGNED').first(): raise ValueError('Complete your accepted trip before changing availability')
+  if s==d.status and s in ('offline','available'): return dict(status=s)
+  if s not in TRANSITIONS.get(d.status,[]): raise ValueError('This status change is not available during your current trip')
   if s=='available':
    loc=db.session.get(Location,d.id)
    if not loc or loc.updated<now()-90: raise ValueError('Share a fresh location before going available')
@@ -218,7 +220,8 @@ class DriverService:
 def location(): return jsonify(DriverService.location(body()))
 @app.post('/api/driver/status')
 @auth('driver')
-def status(): return jsonify(DriverService.status(body().get('status')))
+def status():
+ with lock: return jsonify(DriverService.status(body().get('status')))
 def ride_json(r):
  q=Repository.get(Quote,r.quote_id); rd=Round.query.filter_by(ride_id=r.id).order_by(Round.number.desc()).first()
  loc=db.session.get(Location,r.driver_id) if r.driver_id and r.status=='ASSIGNED' else None

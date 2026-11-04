@@ -17,6 +17,9 @@ def test_complete_workflow():
  assert c.put('/api/driver/location',headers=driver,json=dict(lat=100,lng=77)).status_code==400
  assert c.put('/api/driver/location',headers=driver,json=dict(lat=12.9784,lng=77.6408)).status_code==200
  assert c.post('/api/driver/status',headers=driver,json=dict(status='available')).status_code==200
+ assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==200
+ assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==200
+ assert c.post('/api/driver/status',headers=driver,json=dict(status='available')).status_code==200
  q=c.get('/api/fares/quote?origin=12.9784,77.6408&destination=12.9756,77.6067',headers=rider).json
  r=c.post('/api/rides',headers=rider,json=dict(quote_id=q['id'])); assert r.status_code==201,r.json
  id=r.json['id']; assert r.json['radius']==500

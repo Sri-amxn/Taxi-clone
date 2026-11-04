@@ -109,3 +109,7 @@ Driver maps already watch GPS; both rider and driver trip maps now also display 
 ## Clean Ant Design interface
 
 The current interface follows the neutral, map-first design plan: separate rider/driver entry choices, focused booking, prominent driver availability/earnings, mobile bottom navigation, readable statuses and searchable admin monitoring. See [UI design and component guide](docs/UI-DESIGN.md) for where Ant Design is used, theme configuration, responsive behavior and verification limits. No database migration or new dependency is needed for this design update.
+
+## Driver availability switch
+
+Drivers can manually go online/offline when idle, paused, after completion, or while invitations are pending. Online first obtains fresh GPS and saves it, with visible progress and specific permission/timeout/API errors. Offline does not request GPS. The incoming-request dialog also offers **Go offline**, cancelling pending invitations. Accepted/ongoing trips and suspended accounts cannot switch availability; the UI explains why. Repeated idle-status requests are safe. The single-process server serializes status changes with acceptance; multi-instance locking remains a production prerequisite.
