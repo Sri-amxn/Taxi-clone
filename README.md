@@ -66,3 +66,17 @@ Flask-Migrate is configured. Use versioned migrations for SQL Server: `flask --a
 - Current map shows trip markers, not nearby drivers. Full privacy-safe nearby-driver rendering remains to be implemented.
 
 Production requires HTTPS, a production server, persistent secrets, durable worker deployment, migrations, verified SQL Server transactions and the remaining acceptance tests from the PDF. Do not claim all PDF acceptance criteria are covered by the included smoke test.
+
+## Live Maps update
+
+Enable **Places API (New)** as well as Maps JavaScript API and Routes API. Restrict the browser key to both Maps JavaScript API and Places API (New); the server key remains Routes API only. Address search now uses Google's new PlaceAutocompleteElement. Selecting a result updates the pickup/destination coordinates. Enable browser location permission for precise current location; deployed pages need HTTPS.
+
+Set `DEMO_MODE=0` for real routing. Export `GOOGLE_MAPS_SERVER_KEY` in the backend shell, and set `VITE_GOOGLE_MAPS_BROWSER_KEY` in `frontend/.env.local`; restart both processes. Do not paste the server key into chat. Missing credentials now show map/provider errors rather than an illustrative map.
+
+The map includes a live traffic layer toggle. Assigned trips display the assigned driver's fresh GPS marker, traffic-aware route distance, travel time, traffic delay and estimated arrival. ETA refreshes every 60 seconds (or manually); driver GPS targets 30 seconds. Stale GPS produces a visible warning. Routes use departure time now. A changing ETA does not change the confirmed fare. Before pickup, ETA means driver-to-pickup; once the trip starts it means driver-to-destination. This is traffic-aware estimation, not guaranteed arrival or turn-by-turn navigation.
+
+In a restricted cloud environment allow `routes.googleapis.com` for backend requests and Google Maps/Places browser resources (`maps.googleapis.com`, `maps.gstatic.com`, `places.googleapis.com` plus any additional hosts reported by browser diagnostics). On your Mac, normal Internet access suffices. Google Cloud credentials and billing must be configured by the project owner; live API calls cannot be validated without them.
+
+Manual integration check: search two real addresses, allow location, verify markers and road polyline, toggle traffic, request a ride near a consenting online driver, advance to ongoing and verify the ETA leg changes. Verify a rejected key, disabled billing, no driving route and denied GPS all show errors. Traffic coverage depends on Google's data and region.
+
+This section supersedes the earlier note that Places/address autocomplete and assigned-driver map markers are future work. Nearby unassigned driver locations are still intentionally not exposed.

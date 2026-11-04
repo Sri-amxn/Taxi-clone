@@ -32,3 +32,25 @@ def test_complete_workflow():
  with app.app_context():
   assert Ledger.query.count()==1
   ledger=Ledger.query.first(); assert round(ledger.driver_amount+ledger.company_amount,2)==ledger.fare
+
+def test_google_route_contract(monkeypatch):
+ from app import FareService
+ monkeypatch.setenv('GOOGLE_MAPS_SERVER_KEY','test-only')
+ captured={}
+ class Response:
+  def raise_for_status(self): pass
+  def json(self): return {'routes':[{'distanceMeters':2500,'duration':'600s','staticDuration':'400s','polyline':{'encodedPolyline':'example'}}]}
+ def post(url,**kwargs): captured.update(kwargs); return Response()
+ monkeypatch.setattr('app.requests.post',post)
+ result=FareService.route([12,77],[13,78])
+ assert result['minutes']==10 and result['km']==2.5 and result['demo'] is False
+ assert captured['json']['routingPreference']=='TRAFFIC_AWARE'
+ assert captured['json']['departureTime'].endswith('Z')
+ assert captured['timeout']==10
+
+def test_missing_google_key_fails_outside_demo(monkeypatch):
+ import pytest
+ from app import FareService
+ monkeypatch.delenv('GOOGLE_MAPS_SERVER_KEY',raising=False)
+ monkeypatch.setenv('DEMO_MODE','0')
+ with pytest.raises(ValueError,match='not configured'): FareService.route([12,77],[13,78])

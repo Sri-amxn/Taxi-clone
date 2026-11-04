@@ -134,10 +134,15 @@ class FareService:
    km=distance(a,b)/1000*1.3
    return dict(km=round(km,2),minutes=round(km*3,1),baseline=round(km*3,1),demo=True,polyline=None)
   try:
-   r=requests.post('https://routes.googleapis.com/directions/v2:computeRoutes',headers={'X-Goog-Api-Key':key,'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.staticDuration,routes.polyline.encodedPolyline'},json={'origin':{'location':{'latLng':{'latitude':a[0],'longitude':a[1]}}},'destination':{'location':{'latLng':{'latitude':b[0],'longitude':b[1]}}},'travelMode':'DRIVE','routingPreference':'TRAFFIC_AWARE'},timeout=10)
-   r.raise_for_status(); route=r.json()['routes'][0]
+   r=requests.post('https://routes.googleapis.com/directions/v2:computeRoutes',headers={'X-Goog-Api-Key':key,'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.staticDuration,routes.polyline.encodedPolyline'},json={'origin':{'location':{'latLng':{'latitude':a[0],'longitude':a[1]}}},'destination':{'location':{'latLng':{'latitude':b[0],'longitude':b[1]}}},'travelMode':'DRIVE','routingPreference':'TRAFFIC_AWARE','departureTime':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')},timeout=10)
+   r.raise_for_status(); routes=r.json().get('routes',[])
+   if not routes: raise ValueError('No driving route found between these locations')
+   route=routes[0]
    return dict(km=route['distanceMeters']/1000,minutes=float(route['duration'][:-1])/60,baseline=float(route['staticDuration'][:-1])/60,demo=False,polyline=route['polyline']['encodedPolyline'])
-  except Exception: raise ValueError('Route provider unavailable; try again later')
+  except ValueError: raise ValueError('No valid driving route returned; check your locations')
+  except requests.Timeout: raise ValueError('Google Routes timed out; please retry')
+  except requests.RequestException: raise ValueError('Google Routes unavailable; check server key, billing, quota and API restrictions')
+  except (KeyError,IndexError,TypeError): raise ValueError('Google Routes returned an incomplete route')
  @staticmethod
  def quote(a,b):
   route=FareService.route(a,b); rule=FareRule.query.first().data; multiplier=1.; reasons=[]; stamp=datetime.now(timezone.utc)
@@ -186,7 +191,8 @@ def location(): return jsonify(DriverService.location(body()))
 def status(): return jsonify(DriverService.status(body().get('status')))
 def ride_json(r):
  q=Repository.get(Quote,r.quote_id); rd=Round.query.filter_by(ride_id=r.id).order_by(Round.number.desc()).first()
- return dict(id=r.id,status=r.status,driver_id=r.driver_id,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
+ loc=db.session.get(Location,r.driver_id) if r.driver_id and r.status=='ASSIGNED' else None
+ return dict(id=r.id,status=r.status,driver_id=r.driver_id,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
 lock=threading.RLock()
 class RideService:
  @staticmethod
@@ -240,6 +246,19 @@ def get_ride(id):
  r=Repository.get(Ride,id)
  if g.user.role!='admin' and g.user.id not in (r.rider_id,r.driver_id): return jsonify(error='Access denied'),403
  return jsonify(ride_json(r))
+@app.get('/api/rides/<int:id>/route')
+@auth()
+@limiter.limit('10 per minute')
+def live_route(id):
+ r=Repository.get(Ride,id)
+ if g.user.id not in (r.rider_id,r.driver_id) and g.user.role!='admin': return jsonify(error='Access denied'),403
+ if r.status!='ASSIGNED': raise ValueError('Live ETA is available for assigned trips')
+ q=Repository.get(Quote,r.quote_id).data; d=Repository.get(Driver,r.driver_id); loc=db.session.get(Location,d.id)
+ if not loc or loc.updated<now()-90: raise ValueError('Driver location is stale; waiting for a fresh GPS update')
+ leg='destination' if d.status=='ongoing_ride' else 'pickup'
+ origin=[loc.lat,loc.lng]; destination=q['destination'] if leg=='destination' else q['origin']
+ result=FareService.route(origin,destination); timestamp=now()
+ return jsonify(**result,origin=origin,destination=destination,leg=leg,calculated_at=timestamp,arrival_at=timestamp+result['minutes']*60,traffic_delay_minutes=max(0,result['minutes']-result['baseline']))
 @app.post('/api/rides/<int:id>/<action>')
 @auth()
 def ride_action(id,action): return jsonify(RideService.action(id,action))
