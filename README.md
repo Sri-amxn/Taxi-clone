@@ -105,3 +105,7 @@ Validation covers profile updates, OTP ownership, direct-status bypass preventio
 Rider pickup now follows subsequent browser GPS readings until a manual pickup address is selected or a ride is booked. **Use live current location** restores following; **Refresh current location** restarts the location watcher after permission/device changes. Moving pickup invalidates an unconfirmed fare quote, so request an updated quote before booking. A booked ride retains its agreed pickup.
 
 Driver maps already watch GPS; both rider and driver trip maps now also display the user's current position. Driver GPS uploads continue targeting 30 seconds while online. Returning to a visible browser tab requests a fresh position. Permission/time-out messages explain when the last position may be outdated. Actual precision and update frequency depend on device location services; desktop locations can be approximate, and browser background tracking is not guaranteed.
+
+## Clean Ant Design interface
+
+The current interface follows the neutral, map-first design plan: separate rider/driver entry choices, focused booking, prominent driver availability/earnings, mobile bottom navigation, readable statuses and searchable admin monitoring. See [UI design and component guide](docs/UI-DESIGN.md) for where Ant Design is used, theme configuration, responsive behavior and verification limits. No database migration or new dependency is needed for this design update.
