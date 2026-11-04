@@ -37,3 +37,7 @@ Production build plus Chromium fixture checks cover both first-visit choices, ro
 ## Run this update
 
 Pull `main`, then restart Vite. No new package installation or database migration is required for this design update. Stop and restart Flask only if your existing local workflow requires it; this update changes no backend code.
+
+### Address search panel
+
+Google Places autocomplete is explicitly set to `color-scheme: light` on the custom-element host so operating-system dark mode does not turn this otherwise light interface black. The browser provider still owns its internal search UI; SCSS styles its supported host rather than reaching into private shadow DOM. Pickup/destination rows have connected markers, focus outlines and plain read-only selected-address summaries (`cursor: default`, with text selection still available). Only the Google search fields are editable. Quota or key errors are still shown; visual changes do not resolve provider access limits.
