@@ -99,20 +99,3 @@ Ride OTP is **in-app trip-start verification**, not SMS/login OTP. After assignm
 Driver earnings show actual historical driver/company percentages and amounts, alongside the current split and estimated active-trip share. Actual settlement uses the configured split at completion. Navigation now highlights the current page, admin Overview is separate from Controls, mutations show feedback, and page transitions respect reduced-motion preferences.
 
 Validation covers profile updates, OTP ownership, direct-status bypass prevention, incorrect/expired/locked codes, renewal, single-use behavior and settlement. Real GPS, map selection and responsive visual behavior still require a browser with configured Google credentials.
-
-## Update: bold rider/driver design and simulated QR checkout
-
-Riders now have a violet/lime editorial design; drivers have a green/lime work dashboard. Typography uses local serif, heavy sans-serif and monospace stacks, with no external font requests. Car, person and destination icons distinguish map roles. A moving pulse follows Google's road polyline (when present); it is a direction animation, **not a simulated vehicle location**. Both route and screen animations honor reduced-motion preferences.
-
-After pulling, stop Flask and run the additive payment-table upgrade against your existing database:
-
-```bash
-cd backend
-../.venv/bin/flask --app app upgrade-payments
-```
-
-Restart Flask and Vite. Completed trips show a QR checkout card in both dashboards. Scan the QR to open `/payment/<ride_id>` and sign in as that trip's rider, or choose **Simulate payment** directly on the rider screen. A confirmation dialog makes clear that no money moves. The server derives the amount from the saved quote, checks ownership and completion, and stores one simulated payment per ride. Repeating confirmation returns the same receipt. The driver sees the updated demo-paid status. This is not a UPI QR, bank transfer or payment gateway; revenue ledger allocation and demo payment status are separate.
-
-The QR uses the current browser origin. For a second device, access the app through a hostname reachable from that device; a `localhost` QR points to the scanning device itself. HTTPS is required for deployed GPS. Do not put payment credentials into this app.
-
-Drivers automatically return to **available** after completing a ride; no extra online button press is needed. GPS continues updating while online, and stale location remains excluded from matching. Existing drivers already in the older `ride_completed` state can switch online once.

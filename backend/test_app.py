@@ -39,16 +39,6 @@ def test_complete_workflow():
  assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==400
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
- assert c.get('/api/dashboard',headers=driver).json['status']=='available'
- assert c.post(f'/api/rides/{id}/simulate-payment',headers=driver,json={}).status_code==403
- receipt=c.post(f'/api/rides/{id}/simulate-payment',headers=rider,json={'amount':1})
- assert receipt.status_code==200
- assert receipt.json['payment']['amount']==q['total']
- again=c.post(f'/api/rides/{id}/simulate-payment',headers=rider,json={})
- assert again.json['payment']['reference']==receipt.json['payment']['reference']
- assert c.get(f'/api/rides/{id}',headers=driver).json['payment']['status']=='simulated_paid'
- from app import DemoPayment
- with app.app_context(): assert DemoPayment.query.count()==1
  from app import Ledger
  with app.app_context():
   assert Ledger.query.count()==1
@@ -87,7 +77,6 @@ def test_code_expiry_lockout_and_renewal():
   db.session.get(Driver,driver.id).status='waiting_for_rider'; db.session.commit()
   id=r.id; headers={'Authorization':'Bearer '+signer.dumps(driver.id)}; rh={'Authorization':'Bearer '+signer.dumps(rider.id)}
  c=app.test_client()
- assert c.post(f'/api/rides/{id}/simulate-payment',headers=rh,json={}).status_code==400
  assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':'000000'}).status_code==400
  assert c.post(f'/api/rides/{id}/renew-code',headers=headers).status_code==400
  assert c.post(f'/api/rides/{id}/renew-code',headers=rh).status_code==200
