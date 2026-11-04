@@ -99,3 +99,9 @@ Ride OTP is **in-app trip-start verification**, not SMS/login OTP. After assignm
 Driver earnings show actual historical driver/company percentages and amounts, alongside the current split and estimated active-trip share. Actual settlement uses the configured split at completion. Navigation now highlights the current page, admin Overview is separate from Controls, mutations show feedback, and page transitions respect reduced-motion preferences.
 
 Validation covers profile updates, OTP ownership, direct-status bypass prevention, incorrect/expired/locked codes, renewal, single-use behavior and settlement. Real GPS, map selection and responsive visual behavior still require a browser with configured Google credentials.
+
+## Live current-location behavior
+
+Rider pickup now follows subsequent browser GPS readings until a manual pickup address is selected or a ride is booked. **Use live current location** restores following; **Refresh current location** restarts the location watcher after permission/device changes. Moving pickup invalidates an unconfirmed fare quote, so request an updated quote before booking. A booked ride retains its agreed pickup.
+
+Driver maps already watch GPS; both rider and driver trip maps now also display the user's current position. Driver GPS uploads continue targeting 30 seconds while online. Returning to a visible browser tab requests a fresh position. Permission/time-out messages explain when the last position may be outdated. Actual precision and update frequency depend on device location services; desktop locations can be approximate, and browser background tracking is not guaranteed.
