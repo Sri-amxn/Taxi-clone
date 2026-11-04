@@ -7,7 +7,7 @@ def test_complete_workflow():
   db.create_all(); Repository.add(FareRule(data=dict(base=40,per_km=14,per_minute=2,minimum=60,cap=2,surge_enabled=True))); Repository.add(Share(driver_pct=85,company_pct=15)); db.session.commit()
  c=app.test_client()
  def account(mobile,role):
-  b=dict(mobile=mobile,password='strong-test-password',role=role)
+  b=dict(name='Test Member',mobile=mobile,password='strong-test-password',role=role)
   assert c.post('/api/auth/register',json=b).status_code==201
   r=c.post('/api/auth/login',json=b).json
   return {'Authorization':'Bearer '+r['token']}
@@ -23,8 +23,19 @@ def test_complete_workflow():
  assert len(c.get('/api/dashboard',headers=driver).json['invitations'])==1
  assert c.post(f'/api/rides/{id}/accept',headers=driver).status_code==200
  assert c.post(f'/api/rides/{id}/accept',headers=driver).status_code==400
- for status in ['arriving_at_pickup','waiting_for_rider','ongoing_ride']:
+ for status in ['arriving_at_pickup','waiting_for_rider']:
   assert c.post('/api/driver/status',headers=driver,json=dict(status=status)).status_code==200
+ assert c.post('/api/driver/status',headers=driver,json=dict(status='ongoing_ride')).status_code==400
+ code=c.get(f'/api/rides/{id}',headers=rider).json['start_code']
+ assert len(code)==6
+ assert c.get(f'/api/rides/{id}',headers=driver).json['start_code'] is None
+ assert c.post(f'/api/rides/{id}/start',headers=rider,json=dict(code=code)).status_code==400
+ assert c.post(f'/api/rides/{id}/start',headers=driver,json=dict(code='wrong')).status_code==400
+ assert c.post(f'/api/rides/{id}/start',headers=driver,json=dict(code=code)).status_code==200
+ assert c.post(f'/api/rides/{id}/start',headers=driver,json=dict(code=code)).status_code==400
+ assert c.get(f'/api/rides/{id}',headers=rider).json['start_code'] is None
+ assert c.put('/api/me',headers=rider,json=dict(name='Updated Rider')).json['name']=='Updated Rider'
+ assert c.put('/api/me',headers=rider,json=dict(name='')).status_code==400
  assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==400
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
@@ -54,3 +65,26 @@ def test_missing_google_key_fails_outside_demo(monkeypatch):
  monkeypatch.delenv('GOOGLE_MAPS_SERVER_KEY',raising=False)
  monkeypatch.setenv('DEMO_MODE','0')
  with pytest.raises(ValueError,match='not configured'): FareService.route([12,77],[13,78])
+
+def test_code_expiry_lockout_and_renewal():
+ from app import RideVerification,Ride,Driver,Quote,signer,now,limiter
+ limiter.enabled=False
+ with app.app_context():
+  rider=User.query.filter_by(role='rider').first(); driver=User.query.filter_by(role='driver').first()
+  q=Repository.add(Quote(user_id=rider.id,data={},expires=now()+120))
+  r=Repository.add(Ride(rider_id=rider.id,driver_id=driver.id,quote_id=q.id,status='ASSIGNED'))
+  Repository.add(RideVerification(ride_id=r.id,nonce='test-nonce',expires=now()-1))
+  db.session.get(Driver,driver.id).status='waiting_for_rider'; db.session.commit()
+  id=r.id; headers={'Authorization':'Bearer '+signer.dumps(driver.id)}; rh={'Authorization':'Bearer '+signer.dumps(rider.id)}
+ c=app.test_client()
+ assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':'000000'}).status_code==400
+ assert c.post(f'/api/rides/{id}/renew-code',headers=headers).status_code==400
+ assert c.post(f'/api/rides/{id}/renew-code',headers=rh).status_code==200
+ code=c.get(f'/api/rides/{id}',headers=rh).json['start_code']
+ for _ in range(5): assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':'invalid'}).status_code==400
+ assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':code}).status_code==400
+ assert c.get(f'/api/rides/{id}',headers=rh).json['start_code'] is None
+ assert c.post(f'/api/rides/{id}/renew-code',headers=rh).status_code==200
+ new_code=c.get(f'/api/rides/{id}',headers=rh).json['start_code']
+ assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':new_code}).status_code==200
+ limiter.enabled=True

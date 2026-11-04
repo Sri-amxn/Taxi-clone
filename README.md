@@ -80,3 +80,22 @@ In a restricted cloud environment allow `routes.googleapis.com` for backend requ
 Manual integration check: search two real addresses, allow location, verify markers and road polyline, toggle traffic, request a ride near a consenting online driver, advance to ongoing and verify the ETA leg changes. Verify a rejected key, disabled billing, no driving route and denied GPS all show errors. Traffic coverage depends on Google's data and region.
 
 This section supersedes the earlier note that Places/address autocomplete and assigned-driver map markers are future work. Nearby unassigned driver locations are still intentionally not exposed.
+
+## Update: personal locations, profiles and ride-start verification
+
+After pulling this update, stop Flask and run the additive schema upgrade once (safe to repeat):
+
+```bash
+cd backend
+../.venv/bin/flask --app app upgrade-profiles-otp
+```
+
+Run it against the same `DATABASE_URL` used by your app. It adds `USER_PROFILES` and `RIDE_VERIFICATIONS` without deleting existing users, rides or earnings. Restart Flask and Vite. Existing accounts can add a display name from **My profile**; new rider/driver registrations require a name. Phone/password remain the login credentials because names are not unique. Mobile and role editing are intentionally unavailable.
+
+There are no preset city coordinates in the UI. Rider pickup initializes from browser GPS when permission is granted; address search provides a fallback. Driver dashboards display their own GPS location, including while offline, but offline browser location is not uploaded to the backend. Maps show a world view with guidance until a location/address is available. Google Places search or a map click fills surge-zone coordinates automatically; admins still choose the radius, schedule and multiplier. The visible circle previews the zone. Selection must be confirmed by saving the form.
+
+Ride OTP is **in-app trip-start verification**, not SMS/login OTP. After assignment the rider sees a six-digit code. The driver reaches `waiting_for_rider`, enters the code, and starts only after server verification. Codes expire after one hour, lock after five incorrect attempts, and are single use. Only the rider can renew a code before the trip starts. Keep `USER_CODE_SECRET` stable across restarts. Existing assigned trips without a code can use the rider's **Get a new code** action. Never share the code before meeting the driver.
+
+Driver earnings show actual historical driver/company percentages and amounts, alongside the current split and estimated active-trip share. Actual settlement uses the configured split at completion. Navigation now highlights the current page, admin Overview is separate from Controls, mutations show feedback, and page transitions respect reduced-motion preferences.
+
+Validation covers profile updates, OTP ownership, direct-status bypass prevention, incorrect/expired/locked codes, renewal, single-use behavior and settlement. Real GPS, map selection and responsive visual behavior still require a browser with configured Google credentials.

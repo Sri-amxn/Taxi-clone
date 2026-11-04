@@ -25,6 +25,26 @@ def money(x): return float(Decimal(str(x)).quantize(Decimal('.01'),rounding=ROUN
 class User(db.Model):
  __tablename__='USERS'
  id=db.Column(db.Integer,primary_key=True); mobile=db.Column(db.String(20),unique=True,nullable=False); password_hash=db.Column(db.String(256),nullable=False); user_code=db.Column(db.String(70),unique=True,nullable=False); role=db.Column(db.String(12)); status=db.Column(db.String(20),default='active'); created_at=db.Column(db.Float,default=now)
+class Profile(db.Model):
+ __tablename__='USER_PROFILES'
+ user_id=db.Column(db.Integer,db.ForeignKey('USERS.id'),primary_key=True)
+ name=db.Column(db.String(80),nullable=False)
+class RideVerification(db.Model):
+ __tablename__='RIDE_VERIFICATIONS'
+ ride_id=db.Column(db.Integer,db.ForeignKey('RIDES.id'),primary_key=True)
+ nonce=db.Column(db.String(64),nullable=False)
+ expires=db.Column(db.Float,nullable=False)
+ attempts=db.Column(db.Integer,default=0,nullable=False)
+ verified=db.Column(db.Boolean,default=False,nullable=False)
+def display_name(id):
+ p=db.session.get(Profile,id)
+ return p.name if p else 'Member'
+def valid_name(value):
+ if not isinstance(value,str) or not 2<=len(value.strip())<=80 or any(ord(c)<32 for c in value): raise ValueError('Name must contain 2–80 characters')
+ return value.strip()
+def ride_code(v):
+ digest=hmac.new(code_secret.encode(),('trip:'+str(v.ride_id)+v.nonce).encode(),hashlib.sha256).digest()
+ return str(int.from_bytes(digest[:8],'big')%1000000).zfill(6)
 class Driver(db.Model):
  __tablename__='DRIVERS'
  id=db.Column(db.Integer,db.ForeignKey('USERS.id'),primary_key=True); status=db.Column(db.String(32),default='offline',index=True); updated=db.Column(db.Float,default=now)
@@ -69,7 +89,7 @@ class Repository:
   if not obj: raise ValueError('Record not found')
   return obj
 
-def profile(u): return dict(id=u.id,mobile=u.mobile,user_code=u.user_code,role=u.role)
+def profile(u): return dict(id=u.id,name=display_name(u.id),mobile=u.mobile,user_code=u.user_code,role=u.role)
 def auth(role=None):
  def decorator(fn):
   @wraps(fn)
@@ -102,6 +122,7 @@ def distance(a,b):
 class AuthService:
  @staticmethod
  def register(b):
+  name=valid_name(b.get('name'))
   mobile=str(b.get('mobile','')).replace(' ','')
   if not re.fullmatch(r'\+[1-9]\d{7,14}',mobile): raise ValueError('Use international mobile format, e.g. +919876543210')
   if len(b.get('password',''))<10: raise ValueError('Password needs at least 10 characters')
@@ -111,6 +132,7 @@ class AuthService:
   code=('DRV-' if role=='driver' else 'RID-')+digest[:16]
   if User.query.filter_by(user_code=code).first(): code+=digest[16:32]
   u=Repository.add(User(mobile=mobile,password_hash=generate_password_hash(b['password']),user_code=code,role=role))
+  Repository.add(Profile(user_id=u.id,name=name))
   if role=='driver': Repository.add(Driver(id=u.id))
   db.session.commit(); return profile(u)
 @app.post('/api/auth/register')
@@ -125,6 +147,14 @@ def login():
 @app.get('/api/me')
 @auth()
 def me(): return jsonify(profile(g.user))
+@app.put('/api/me')
+@auth()
+def update_profile():
+ name=valid_name(body().get('name'))
+ p=db.session.get(Profile,g.user.id)
+ if p: p.name=name
+ else: Repository.add(Profile(user_id=g.user.id,name=name))
+ db.session.commit(); return jsonify(profile(g.user))
 class FareService:
  @staticmethod
  def route(a,b):
@@ -161,7 +191,7 @@ def route(): return jsonify(FareService.route(coordinates(request.args.get('orig
 @app.get('/api/fares/quote')
 @auth('rider')
 def quote(): return jsonify(FareService.quote(coordinates(request.args.get('origin')),coordinates(request.args.get('destination'))))
-TRANSITIONS={'offline':['available'],'available':['offline','temporarily_unavailable'],'temporarily_unavailable':['available','offline'],'ride_requested':['offline'],'ride_accepted':['arriving_at_pickup'],'arriving_at_pickup':['waiting_for_rider'],'waiting_for_rider':['ongoing_ride'],'ride_completed':['available','offline']}
+TRANSITIONS={'offline':['available'],'available':['offline','temporarily_unavailable'],'temporarily_unavailable':['available','offline'],'ride_requested':['offline'],'ride_accepted':['arriving_at_pickup'],'arriving_at_pickup':['waiting_for_rider'],'waiting_for_rider':[],'ride_completed':['available','offline']}
 class DriverService:
  @staticmethod
  def status(s):
@@ -192,7 +222,9 @@ def status(): return jsonify(DriverService.status(body().get('status')))
 def ride_json(r):
  q=Repository.get(Quote,r.quote_id); rd=Round.query.filter_by(ride_id=r.id).order_by(Round.number.desc()).first()
  loc=db.session.get(Location,r.driver_id) if r.driver_id and r.status=='ASSIGNED' else None
- return dict(id=r.id,status=r.status,driver_id=r.driver_id,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
+ v=db.session.get(RideVerification,r.id)
+ ledger=Ledger.query.filter_by(ride_id=r.id).first()
+ return dict(id=r.id,status=r.status,driver_id=r.driver_id,driver_name=display_name(r.driver_id) if r.driver_id else None,rider_name=display_name(r.rider_id),start_code=ride_code(v) if v and not v.verified and v.expires>now() and v.attempts<5 and g.user.id==r.rider_id else None,code_expires=v.expires if v else None,settlement=dict(driver_pct=ledger.driver_pct,company_pct=ledger.company_pct,driver_amount=ledger.driver_amount,company_amount=ledger.company_amount) if ledger else None,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
 lock=threading.RLock()
 class RideService:
  @staticmethod
@@ -224,6 +256,21 @@ class RideService:
      changed=Ride.query.filter_by(id=id,status='SEARCHING').update({'status':'ASSIGNED','driver_id':d.id})
      if changed!=1: raise ValueError('Ride already assigned')
      d.status='ride_accepted'; db.session.refresh(r)
+     Repository.add(RideVerification(ride_id=r.id,nonce=secrets.token_hex(32),expires=now()+3600))
+   elif action=='start':
+    if r.driver_id!=g.user.id or r.status!='ASSIGNED': raise ValueError('Only the assigned driver can start this ride')
+    d=Repository.get(Driver,g.user.id); v=db.session.get(RideVerification,id)
+    if d.status!='waiting_for_rider' or not v or v.verified or v.expires<=now() or v.attempts>=5: raise ValueError('Code unavailable or locked. Ask the rider to renew it.')
+    code=str(body().get('code',''))
+    if not hmac.compare_digest(code,ride_code(v)):
+     v.attempts+=1; db.session.commit(); raise ValueError('Incorrect ride code. Five attempts maximum.')
+    v.verified=True; d.status='ongoing_ride'
+   elif action=='renew-code':
+    if r.rider_id!=g.user.id or r.status!='ASSIGNED': raise ValueError('Ride unavailable')
+    d=Repository.get(Driver,r.driver_id); v=db.session.get(RideVerification,id)
+    if d.status not in ('ride_accepted','arriving_at_pickup','waiting_for_rider'): raise ValueError('Trip already started')
+    if not v: v=Repository.add(RideVerification(ride_id=id,nonce=secrets.token_hex(32),expires=now()+3600))
+    v.nonce=secrets.token_hex(32); v.expires=now()+3600; v.attempts=0; v.verified=False
    elif action=='complete':
     if r.driver_id!=g.user.id: raise ValueError('Ride unavailable')
     if r.status=='COMPLETED': return ride_json(r)
@@ -260,6 +307,7 @@ def live_route(id):
  result=FareService.route(origin,destination); timestamp=now()
  return jsonify(**result,origin=origin,destination=destination,leg=leg,calculated_at=timestamp,arrival_at=timestamp+result['minutes']*60,traffic_delay_minutes=max(0,result['minutes']-result['baseline']))
 @app.post('/api/rides/<int:id>/<action>')
+@limiter.limit('15 per minute')
 @auth()
 def ride_action(id,action): return jsonify(RideService.action(id,action))
 @app.get('/api/dashboard')
@@ -270,7 +318,8 @@ def dashboard():
  if g.user.role=='driver': rides=rides.filter_by(driver_id=g.user.id)
  result=dict(rides=[ride_json(r) for r in rides.order_by(Ride.id.desc()).limit(30)])
  if g.user.role=='driver':
-  result.update(status=Repository.get(Driver,g.user.id).status,invitations=[dict(**ride_json(Repository.get(Ride,i.ride_id)),deadline=i.expires) for i in Invitation.query.filter(Invitation.driver_id==g.user.id,Invitation.status=='pending',Invitation.expires>now())],earnings=sum(x.driver_amount for x in Ledger.query.filter_by(driver_id=g.user.id)))
+  share=Share.query.order_by(Share.id.desc()).first()
+  result.update(revenue_share=dict(driver_pct=share.driver_pct,company_pct=share.company_pct),status=Repository.get(Driver,g.user.id).status,invitations=[dict(**ride_json(Repository.get(Ride,i.ride_id)),deadline=i.expires) for i in Invitation.query.filter(Invitation.driver_id==g.user.id,Invitation.status=='pending',Invitation.expires>now())],earnings=sum(x.driver_amount for x in Ledger.query.filter_by(driver_id=g.user.id)))
  return jsonify(result)
 class AdminService:
  @staticmethod
@@ -334,10 +383,16 @@ def init_demo():
  if not FareRule.query.first(): Repository.add(FareRule(data=dict(base=40,per_km=14,per_minute=2,minimum=60,cap=2,surge_enabled=True)))
  if not Share.query.first(): Repository.add(Share(driver_pct=85,company_pct=15))
  db.session.commit(); print('Demo database initialized. Register rider/driver in the UI.')
+@app.cli.command('upgrade-profiles-otp')
+def upgrade_profiles_otp():
+ # Additive schema upgrade; does not alter or delete existing user/ride data.
+ Profile.__table__.create(db.engine,checkfirst=True)
+ RideVerification.__table__.create(db.engine,checkfirst=True)
+ print('Profile and ride-verification tables ready. Existing users can set names in Profile.')
 @app.cli.command('create-admin')
 def create_admin():
  import getpass
  mobile=input('Admin mobile (+countrycode): '); password=getpass.getpass('Admin password: ')
- AuthService.register(dict(mobile=mobile,password=password,role='rider')); u=User.query.filter_by(mobile=mobile).first(); u.role='admin'; db.session.commit(); print('Admin created')
+ AuthService.register(dict(name=input('Display name: '),mobile=mobile,password=password,role='rider')); u=User.query.filter_by(mobile=mobile).first(); u.role='admin'; db.session.commit(); print('Admin created')
 if __name__=='__main__':
  threading.Thread(target=worker,daemon=True).start(); socket.run(app,host='127.0.0.1',port=5000,allow_unsafe_werkzeug=True)
