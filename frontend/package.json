@@ -1,0 +1,1 @@
+{"name":"genz-taxi","private":true,"version":"1.0.0","type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build"},"dependencies":{"@vitejs/plugin-react":"latest","vite":"latest","react":"^19.0.0","react-dom":"^19.0.0","react-router-dom":"^7.0.0","antd":"^5.24.0","socket.io-client":"^4.8.1","sass":"^1.85.0"},"devDependencies":{}}
