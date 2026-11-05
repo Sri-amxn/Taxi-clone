@@ -4,11 +4,17 @@ import {BrowserRouter,Routes,Route,Navigate,useNavigate,useLocation} from 'react
 import {ConfigProvider,Button,Input,InputNumber,Select,Card,Tag,Alert,Form,Table,Modal,Statistic,Switch,Space,Empty,message,Skeleton,Spin,Segmented} from 'antd';
 import {io} from 'socket.io-client';
 import './style.scss';
+import {readApiResponse} from './api-response.js';
 import {Availability} from './availability.jsx';
 import {Navigation,Status,statusText} from './design.jsx';
 import {LiveMap, AddressSearch, TripMap, useCurrentLocation, ZonePicker} from './maps.jsx';
 let token=sessionStorage.getItem('token');
-async function api(path,method='GET',data){const r=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},...(data?{body:JSON.stringify(data)}:{})});const b=await r.json();if(!r.ok)throw Error(b.error||'Request failed');return b;}
+async function api(path,method='GET',data){
+ let response;
+ try{response=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},...(data?{body:JSON.stringify(data)}:{})})}
+ catch{throw Error('Could not reach the app server. Check that Vite and Flask are running, then retry.')}
+ return readApiResponse(response);
+}
 const MapView=LiveMap;
 function Login({onLogin}){
  const [register,setRegister]=useState(false);const [busy,setBusy]=useState(false);const [role,setRole]=useState('rider');const [error,setError]=useState('');
