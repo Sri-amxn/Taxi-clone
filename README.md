@@ -113,3 +113,11 @@ The current interface follows the neutral, map-first design plan: separate rider
 ## Driver availability switch
 
 Drivers can manually go online/offline when idle, paused, after completion, or while invitations are pending. Online first obtains fresh GPS and saves it, with visible progress and specific permission/timeout/API errors. Offline does not request GPS. The incoming-request dialog also offers **Go offline**, cancelling pending invitations. Accepted/ongoing trips and suspended accounts cannot switch availability; the UI explains why. Repeated idle-status requests are safe. The single-process server serializes status changes with acceptance; multi-instance locking remains a production prerequisite.
+
+## Trip details and location-based quotes
+
+Expand a row in Trips to see saved pickup/drop-off labels and coordinates, rider/driver names, booking/completion timestamps, quoted distance/time, traffic delay, itemized fare, surge and recorded revenue allocation. New quotes retain selected place labels; new trips snapshot participant names and completion time. Older records gracefully show coordinates or “Not recorded” where information was never stored. No schema migration is required; new metadata uses the existing quote JSON field.
+
+Booking shows device-reported GPS accuracy; GPS precision is not guaranteed (especially on desktops). Search for an address or click the map to refine pickup. Changes invalidate the quote, and late responses for old locations are discarded. Quote expiry is visible and confirmation is disabled when expired or mismatched. Use **Refresh estimate** to fetch current traffic; there is no new automatic polling of paid quote APIs.
+
+With Google configured, the server calculates `(base + road_km × per_km + traffic_minutes × per_minute) × multiplier`, with the configured minimum fare. Traffic duration at least 1.5× baseline qualifies for a 1.2 multiplier, combined with zone/time rules using the highest eligible multiplier and the global cap. Disabling surge leaves distance/time pricing active. Demo mode uses a labelled approximation, not live traffic. Quotes last 120 seconds. Confirmed fares stay locked; later traffic/ETA changes do not silently reprice a booked trip. Historical durations are estimates, not actual elapsed ride time.

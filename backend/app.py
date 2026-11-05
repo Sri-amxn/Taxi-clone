@@ -174,7 +174,7 @@ class FareService:
   except requests.RequestException: raise ValueError('Google Routes unavailable; check server key, billing, quota and API restrictions')
   except (KeyError,IndexError,TypeError): raise ValueError('Google Routes returned an incomplete route')
  @staticmethod
- def quote(a,b):
+ def quote(a,b,origin_label=None,destination_label=None):
   route=FareService.route(a,b); rule=FareRule.query.first().data; multiplier=1.; reasons=[]; stamp=datetime.now(timezone.utc)
   for zone in Zone.query.all():
    z=zone.data
@@ -183,14 +183,20 @@ class FareService:
   if route['baseline'] and route['minutes']/route['baseline']>=1.5: multiplier=max(multiplier,1.2); reasons.append('Heavy traffic')
   multiplier=min(multiplier,rule['cap']) if rule['surge_enabled'] else 1
   base=rule['base']; dist=money(route['km']*rule['per_km']); duration=money(route['minutes']*rule['per_minute'])
-  data=dict(origin=a,destination=b,**route,base=base,distance_amount=dist,duration_amount=duration,multiplier=multiplier,reasons=reasons,total=money(max(rule['minimum'],(base+dist+duration)*multiplier)),quoted_at=now())
+  data=dict(origin=a,destination=b,origin_label=origin_label,destination_label=destination_label,minimum_fare=rule['minimum'],**route,base=base,distance_amount=dist,duration_amount=duration,multiplier=multiplier,reasons=reasons,total=money(max(rule['minimum'],(base+dist+duration)*multiplier)),quoted_at=now())
   q=Repository.add(Quote(user_id=g.user.id,data=data,expires=now()+120)); db.session.commit(); return dict(id=q.id,expires=q.expires,**data)
 @app.get('/api/maps/route')
 @auth()
 def route(): return jsonify(FareService.route(coordinates(request.args.get('origin')),coordinates(request.args.get('destination'))))
 @app.get('/api/fares/quote')
 @auth('rider')
-def quote(): return jsonify(FareService.quote(coordinates(request.args.get('origin')),coordinates(request.args.get('destination'))))
+def quote():
+ labels=[]
+ for name in ('origin_label','destination_label'):
+  label=request.args.get(name,'').strip()
+  if len(label)>300 or any(ord(c)<32 for c in label): raise ValueError('Invalid location label')
+  labels.append(label or None)
+ return jsonify(FareService.quote(coordinates(request.args.get('origin')),coordinates(request.args.get('destination')),*labels))
 TRANSITIONS={'offline':['available'],'available':['offline','temporarily_unavailable'],'temporarily_unavailable':['available','offline'],'ride_requested':['offline'],'ride_accepted':['arriving_at_pickup'],'arriving_at_pickup':['waiting_for_rider'],'waiting_for_rider':[],'ride_completed':['available','offline']}
 class DriverService:
  @staticmethod
@@ -227,7 +233,7 @@ def ride_json(r):
  loc=db.session.get(Location,r.driver_id) if r.driver_id and r.status=='ASSIGNED' else None
  v=db.session.get(RideVerification,r.id)
  ledger=Ledger.query.filter_by(ride_id=r.id).first()
- return dict(id=r.id,status=r.status,driver_id=r.driver_id,driver_name=display_name(r.driver_id) if r.driver_id else None,rider_name=display_name(r.rider_id),start_code=ride_code(v) if v and not v.verified and v.expires>now() and v.attempts<5 and g.user.id==r.rider_id else None,code_expires=v.expires if v else None,settlement=dict(driver_pct=ledger.driver_pct,company_pct=ledger.company_pct,driver_amount=ledger.driver_amount,company_amount=ledger.company_amount) if ledger else None,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
+ return dict(id=r.id,requested_at=r.created,status=r.status,driver_id=r.driver_id,driver_name=q.data.get('driver_name_snapshot') or (display_name(r.driver_id) if r.driver_id else None),rider_name=q.data.get('rider_name_snapshot') or display_name(r.rider_id),start_code=ride_code(v) if v and not v.verified and v.expires>now() and v.attempts<5 and g.user.id==r.rider_id else None,code_expires=v.expires if v else None,settlement=dict(driver_pct=ledger.driver_pct,company_pct=ledger.company_pct,driver_amount=ledger.driver_amount,company_amount=ledger.company_amount) if ledger else None,driver_location=dict(lat=loc.lat,lng=loc.lng,updated=loc.updated) if loc and loc.updated>now()-90 else None,quote=q.data,radius=rd.radius if rd else 500,expires=rd.expires if rd else now(),driver_status=db.session.get(Driver,r.driver_id).status if r.driver_id else None)
 lock=threading.RLock()
 class RideService:
  @staticmethod
@@ -243,6 +249,7 @@ class RideService:
   q=Repository.get(Quote,int(b.get('quote_id',0)))
   if q.user_id!=g.user.id or q.expires<=now(): raise ValueError('Quote expired or unavailable')
   if Ride.query.filter_by(quote_id=q.id).first() or Ride.query.filter(Ride.rider_id==g.user.id,Ride.status.in_(['SEARCHING','ASSIGNED'])).first(): raise ValueError('You already have an active ride')
+  q.data={**q.data,'rider_name_snapshot':display_name(g.user.id)}
   r=Repository.add(Ride(rider_id=g.user.id,quote_id=q.id)); RideService.matching(r,1); db.session.commit(); return ride_json(r)
  @staticmethod
  def action(id,action):
@@ -259,6 +266,7 @@ class RideService:
      changed=Ride.query.filter_by(id=id,status='SEARCHING').update({'status':'ASSIGNED','driver_id':d.id})
      if changed!=1: raise ValueError('Ride already assigned')
      d.status='ride_accepted'; db.session.refresh(r)
+     quote=Repository.get(Quote,r.quote_id); quote.data={**quote.data,'driver_name_snapshot':display_name(d.id),'assigned_at':now()}
      Repository.add(RideVerification(ride_id=r.id,nonce=secrets.token_hex(32),expires=now()+3600))
    elif action=='start':
     if r.driver_id!=g.user.id or r.status!='ASSIGNED': raise ValueError('Only the assigned driver can start this ride')
@@ -281,6 +289,7 @@ class RideService:
     if d.status!='ongoing_ride': raise ValueError('Trip must be ongoing')
     share=Share.query.order_by(Share.id.desc()).first(); fare=Repository.get(Quote,r.quote_id).data['total']; amount=money(Decimal(str(fare))*Decimal(str(share.driver_pct))/100)
     Repository.add(Ledger(ride_id=id,driver_id=d.id,fare=fare,driver_pct=share.driver_pct,company_pct=share.company_pct,driver_amount=amount,company_amount=money(fare-amount))); r.status='COMPLETED'; d.status='ride_completed'
+    quote=Repository.get(Quote,r.quote_id); quote.data={**quote.data,'completed_at':now()}
    else: raise ValueError('Unknown action')
    if r.status!='SEARCHING':
     for invitation in Invitation.query.filter_by(ride_id=id,status='pending'):

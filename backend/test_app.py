@@ -20,9 +20,11 @@ def test_complete_workflow():
  assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==200
  assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==200
  assert c.post('/api/driver/status',headers=driver,json=dict(status='available')).status_code==200
- q=c.get('/api/fares/quote?origin=12.9784,77.6408&destination=12.9756,77.6067',headers=rider).json
+ q=c.get('/api/fares/quote?origin=12.9784,77.6408&destination=12.9756,77.6067&origin_label=Pickup&destination_label=Destination',headers=rider).json
  r=c.post('/api/rides',headers=rider,json=dict(quote_id=q['id'])); assert r.status_code==201,r.json
  id=r.json['id']; assert r.json['radius']==500
+ assert r.json['quote']['origin_label']=='Pickup'
+ assert r.json['requested_at']>0
  assert len(c.get('/api/dashboard',headers=driver).json['invitations'])==1
  assert c.post(f'/api/rides/{id}/accept',headers=driver).status_code==200
  assert c.post(f'/api/rides/{id}/accept',headers=driver).status_code==400
@@ -42,6 +44,10 @@ def test_complete_workflow():
  assert c.post('/api/driver/status',headers=driver,json=dict(status='offline')).status_code==400
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
  assert c.post(f'/api/rides/{id}/complete',headers=driver).status_code==200
+ completed=c.get(f'/api/rides/{id}',headers=rider).json
+ assert completed['quote']['completed_at']>0
+ assert completed['quote']['total']==q['total']
+ assert completed['quote']['driver_name_snapshot']=='Test Member'
  from app import Ledger
  with app.app_context():
   assert Ledger.query.count()==1
@@ -91,3 +97,24 @@ def test_code_expiry_lockout_and_renewal():
  new_code=c.get(f'/api/rides/{id}',headers=rh).json['start_code']
  assert c.post(f'/api/rides/{id}/start',headers=headers,json={'code':new_code}).status_code==200
  limiter.enabled=True
+
+
+def test_quotes_follow_traffic_and_expire(monkeypatch):
+ from app import FareService,signer,Quote,now
+ from flask import g
+ with app.app_context():
+  rider=User.query.filter_by(role='rider').first(); headers={'Authorization':'Bearer '+signer.dumps(rider.id)}
+ c=app.test_client()
+ route=dict(km=2,minutes=10,baseline=10,demo=False,polyline='test')
+ monkeypatch.setattr(FareService,'route',staticmethod(lambda a,b:dict(route)))
+ path='/api/fares/quote?origin=19,72&destination=19.1,72.1&origin_label=Station&destination_label=Office'
+ normal=c.get(path,headers=headers).json
+ assert normal['total']==88 and normal['multiplier']==1
+ route['minutes']=20
+ traffic=c.get(path,headers=headers).json
+ assert traffic['total']==129.6 and traffic['multiplier']==1.2
+ assert traffic['origin_label']=='Station' and 'Heavy traffic' in traffic['reasons']
+ with app.app_context():
+  assert db.session.get(Quote,normal['id']).data['total']==88
+  q=db.session.get(Quote,traffic['id']); q.expires=now()-1; db.session.commit()
+ assert c.post('/api/rides',headers=headers,json={'quote_id':traffic['id']}).status_code==400
