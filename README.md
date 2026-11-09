@@ -121,3 +121,14 @@ Expand a row in Trips to see saved pickup/drop-off labels and coordinates, rider
 Booking shows device-reported GPS accuracy; GPS precision is not guaranteed (especially on desktops). Search for an address or click the map to refine pickup. Changes invalidate the quote, and late responses for old locations are discarded. Quote expiry is visible and confirmation is disabled when expired or mismatched. Use **Refresh estimate** to fetch current traffic; there is no new automatic polling of paid quote APIs.
 
 With Google configured, the server calculates `(base + road_km × per_km + traffic_minutes × per_minute) × multiplier`, with the configured minimum fare. Traffic duration at least 1.5× baseline qualifies for a 1.2 multiplier, combined with zone/time rules using the highest eligible multiplier and the global cap. Disabling surge leaves distance/time pricing active. Demo mode uses a labelled approximation, not live traffic. Quotes last 120 seconds. Confirmed fares stay locked; later traffic/ETA changes do not silently reprice a booked trip. Historical durations are estimates, not actual elapsed ride time.
+
+
+## Frontend organization
+
+The frontend is split into `pages/`, reusable `components/`, `api/`, `auth/`, `hooks/`, `services/` and `styles/`. `main.jsx` only mounts React; `App.jsx` handles routing and session bootstrap; `theme.js` holds Ant Design tokens. See [Frontend structure](docs/FRONTEND-STRUCTURE.md) for the file map.
+
+After pulling this refactor, run `cd frontend && npm ci`, then restart Vite. Prettier was added as a development dependency. Use `npm run format`, `npm run format:check`, `npm test`, and `npm run build`. No database migration is needed.
+
+## Deploy on Render
+
+See [Render deployment instructions](docs/RENDER.md) for a single Docker web service serving React, Flask and Socket.IO. The free demo uses disposable SQLite storage; durable deployment requires external database setup.
