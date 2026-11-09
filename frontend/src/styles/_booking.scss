@@ -1,0 +1,111 @@
+.booking-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.booking label {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  margin: 18px 0 9px;
+}
+.booking .ant-card-body {
+  padding: 18px;
+}
+.booking .ant-btn-link {
+  padding-left: 0;
+  font-size: 12px;
+}
+.booking small {
+  display: block;
+}
+.section-number {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.section-number span {
+  margin-left: 10px;
+  font-size: 18px;
+  color: #252936;
+}
+.location-label {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f6f7fa;
+  color: #465063;
+  margin: 8px 0;
+}
+.ride-type {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+  margin-top: 18px;
+}
+.ride-type strong {
+  font-size: 13px;
+}
+.ride-type p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.car {
+  font-size: 28px;
+  color: #696781;
+}
+.fine {
+  font-size: 11px;
+  text-align: center;
+}
+.map {
+  position: relative;
+  min-height: 440px;
+  background: #eef0f4;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e3e6ed;
+}
+.map:empty:before {
+  content: 'Loading map…';
+  display: block;
+  padding: 28px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.map.map-unavailable {
+  min-height: 180px;
+  background: linear-gradient(145deg, #f1f2f7, #e9ecf3);
+}
+.map.map-unavailable:empty:before {
+  content: 'Your map will appear here when available.';
+}
+.ant-card {
+  border-color: var(--line);
+  box-shadow: 0 3px 15px #1c233804;
+}
+.ant-card-head-title {
+  font-weight: 700 !important;
+}
+.ant-btn {
+  font-weight: 600;
+}
+.ant-btn-lg {
+  height: 48px;
+}
+.ant-btn:active {
+  transform: translateY(1px);
+}
+.ant-input,
+.ant-input-affix-wrapper {
+  font-size: 14px;
+}
+gmp-place-autocomplete {
+  width: 100%;
+  margin-bottom: 6px;
+}

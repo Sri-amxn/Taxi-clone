@@ -1,0 +1,240 @@
+/* Welcome page: content-led height and compact authentication controls. */
+.login {
+  min-height: 0;
+  max-width: 1140px;
+  margin: 28px auto;
+  padding: 28px 32px;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 54px;
+  align-items: start;
+}
+.welcome {
+  padding-top: 6px;
+}
+.welcome .brand {
+  margin-bottom: 30px;
+}
+.welcome .brand small {
+  font-size: 8px;
+}
+.welcome .welcome-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding: 6px 10px;
+  border: 1px solid #e3def9;
+  background: #f0edff;
+  border-radius: 30px;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.welcome-badge > span {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.welcome h1 {
+  font-size: clamp(34px, 4.2vw, 50px);
+  line-height: 1.12;
+  letter-spacing: -1.8px;
+  margin: 0 0 14px;
+  max-width: 460px;
+}
+.welcome > p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+  max-width: 430px;
+}
+.entry-choices {
+  margin: 22px 0 26px;
+  gap: 10px;
+}
+.entry-choices .ant-btn {
+  height: 44px;
+  font-size: 13px;
+  padding-inline: 20px;
+}
+.welcome-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  border-top: 1px solid #e1e4ec;
+  padding-top: 18px;
+  max-width: 480px;
+}
+.welcome-points span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.welcome-points b {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: #343c4e;
+}
+.welcome-points small {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.auth-card {
+  border-radius: 16px;
+  border-color: #e3e6ee;
+  box-shadow: 0 8px 28px #25293606;
+}
+.auth-card .ant-card-body {
+  padding: 22px;
+}
+.auth-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.auth-heading > .ant-tag {
+  font-size: 9px;
+  border-color: #e3dff8;
+  color: var(--accent);
+  background: #f4f1ff;
+  padding: 1px 7px;
+}
+.auth-heading > span:last-child {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: #8b91a0;
+}
+.auth-card h2 {
+  font-size: 24px;
+  letter-spacing: -0.6px;
+  margin: 14px 0 5px;
+}
+.auth-card > .ant-card-body > .muted {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.auth-card .ant-form {
+  margin-top: 0;
+}
+.auth-card .ant-form-item {
+  margin-bottom: 14px;
+}
+.auth-card .ant-form-item-label {
+  padding-bottom: 5px;
+}
+.auth-card .ant-form-item-label > label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.auth-card .ant-input-lg,
+.auth-card .ant-input-affix-wrapper-lg {
+  min-height: 44px;
+  font-size: 14px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  line-height: 24px;
+}
+.auth-card .ant-input-affix-wrapper > .ant-input {
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  line-height: 24px;
+  font-size: 14px;
+  letter-spacing: normal;
+}
+.auth-card input::placeholder {
+  font-size: 13px;
+  letter-spacing: normal;
+  color: #8a91a0;
+}
+.auth-card .ant-form > .ant-btn {
+  height: 44px;
+  font-size: 14px;
+  border-radius: 9px;
+}
+.auth-card .ant-btn-link {
+  display: block;
+  width: 100%;
+  padding: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 40px;
+}
+.auth-card .fine {
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+.auth-card .ant-alert {
+  margin: 12px 0;
+  font-size: 12px;
+}
+@media (max-width: 900px) and (min-width: 801px) {
+  .login {
+    gap: 28px;
+    padding: 24px;
+    grid-template-columns: minmax(0, 1fr) 350px;
+  }
+  .welcome h1 {
+    font-size: 38px;
+  }
+  .welcome-points {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .welcome-points span {
+    flex-direction: row;
+    gap: 8px;
+  }
+}
+@media (max-width: 800px) {
+  .login {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 18px;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .welcome {
+    padding-top: 0;
+  }
+  .welcome .brand {
+    margin-bottom: 18px;
+  }
+  .welcome .welcome-badge {
+    margin-bottom: 10px;
+    font-size: 8px;
+  }
+  .welcome h1 {
+    font-size: 32px;
+    letter-spacing: -1px;
+    max-width: 360px;
+    margin-bottom: 10px;
+  }
+  .welcome > p:not(.eyebrow) {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .entry-choices {
+    margin: 16px 0 0;
+    gap: 10px;
+  }
+  .entry-choices .ant-btn {
+    flex: 1;
+    padding-inline: 12px;
+  }
+  .welcome-points {
+    display: none;
+  }
+  .auth-card .ant-card-body {
+    padding: 20px;
+  }
+  .auth-card h2 {
+    margin-top: 12px;
+    font-size: 22px;
+  }
+}

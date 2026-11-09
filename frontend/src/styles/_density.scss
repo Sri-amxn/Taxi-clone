@@ -1,0 +1,83 @@
+/* Compact rhythm: reduce containers, not touch targets. */
+.page-title .muted,
+.driver-heading .muted {
+  margin: 6px 0 12px;
+}
+.ant-card .ant-form-item {
+  margin-bottom: 16px;
+}
+.features p {
+  margin: 7px 0 0;
+}
+.features .ant-statistic-title {
+  margin-bottom: 4px;
+}
+.table-card .ant-card-body {
+  padding: 18px;
+}
+.ant-table-wrapper .ant-table-pagination {
+  margin: 12px 0 0;
+}
+.booking-heading h2 {
+  margin-top: 6px;
+}
+.profile-card p {
+  margin: 10px 0;
+}
+.trip-details .ant-descriptions-item {
+  padding-bottom: 10px;
+}
+@media (max-width: 800px) {
+  header {
+    height: 54px;
+  }
+  .page-title {
+    margin-bottom: 12px;
+  }
+  .content {
+    padding: 0 14px;
+  }
+  .booking .ant-card-body,
+  .features .ant-card-body {
+    padding: 16px;
+  }
+  .features {
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .features .ant-card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .login {
+    padding: 24px 20px;
+    gap: 20px;
+  }
+  .welcome .brand {
+    margin-bottom: 24px;
+  }
+  .auth-card .ant-card-body {
+    padding: 22px;
+  }
+  .role-driver .driver-heading {
+    padding: 0 0 4px;
+  }
+  footer {
+    padding: 16px 0;
+  }
+  .map.map-unavailable,
+  .booking-grid > section .map.map-unavailable {
+    min-height: 150px;
+  }
+}
+@media (min-width: 480px) and (max-width: 800px) {
+  .role-driver .features,
+  .role-admin .features:not(.admin-controls) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .role-driver .features .ant-card-body,
+  .role-admin .features .ant-card-body {
+    padding: 14px;
+  }
+}

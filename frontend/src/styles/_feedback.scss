@@ -1,0 +1,28 @@
+.page-enter {
+  animation: page-in 0.2s ease-out;
+}
+.is-updating {
+  pointer-events: none;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0;
+  color: #89909c;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.ant-alert {
+  margin-bottom: 12px;
+}
+@keyframes page-in {
+  from {
+    opacity: 0.5;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

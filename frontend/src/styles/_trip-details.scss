@@ -1,0 +1,27 @@
+.history-route {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 270px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.history-route span:last-child {
+  color: var(--muted);
+}
+.trip-details {
+  padding: 16px;
+  background: #fafbfe;
+  border-radius: 12px;
+}
+.trip-details .ant-descriptions {
+  margin-bottom: 14px;
+}
+.trip-details small {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.trip-details p {
+  font-size: 12px;
+}
